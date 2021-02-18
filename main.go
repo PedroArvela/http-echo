@@ -17,13 +17,17 @@ var (
 	listenFlag  = flag.String("listen", ":5678", "address and port to listen")
 	textFlag    = flag.String("text", "", "text to put on the webpage")
 	versionFlag = flag.Bool("version", false, "display version information")
+	timeToBork  = flag.Int("bork", 15, "time until /bork starts failing")
 
 	// stdoutW and stderrW are for overriding in test.
 	stdoutW = os.Stdout
 	stderrW = os.Stderr
+
+	timeStart = time.Now()
 )
 
 func main() {
+
 	flag.Parse()
 
 	// Asking for the version?
@@ -50,6 +54,8 @@ func main() {
 
 	// Health endpoint
 	mux.HandleFunc("/health", withAppHeaders(httpHealth()))
+
+	mux.HandleFunc("/bork", httpLog(stdoutW, withAppHeaders(httpBork())))
 
 	server := &http.Server{
 		Addr:    *listenFlag,
@@ -91,5 +97,16 @@ func httpEcho(v string) http.HandlerFunc {
 func httpHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"status":"ok"}`)
+	}
+}
+
+func httpBork() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		if timeStart.Add(time.Duration(*timeToBork) * time.Second).Before(now) {
+			http.Error(w, "time to bork", http.StatusInternalServerError)
+		} else {
+			fmt.Fprintln(w, `{"status":"ok"}`)
+		}
 	}
 }
